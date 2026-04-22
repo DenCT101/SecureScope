@@ -1,0 +1,74 @@
+// Prisma Schema — Single source of truth for your data model
+// Docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ─── Models ──────────────────────────────────────────────────────
+
+model User {
+  id        String   @id @default(uuid())
+  email     String   @unique
+  password  String
+  role      Role     @default(USER)
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  scans Scan[] @relation("UserScans")
+
+  @@map("users")
+}
+
+//model for the scans and link betwwen the user and the scan
+model Scan {
+  id              String          @id @default(uuid())
+  url             String
+  userId          String
+  toolType        ToolType        @default(SEMGREP)
+  status          ScanStatus      @default(PENDING)
+  createdAt       DateTime        @default(now()) @map("created_at")
+  updatedAt       DateTime        @updatedAt @map("updated_at")
+  vulnerabilities Vulnerability[] @relation("ScanVulnerabilities")
+  // We create a "virtual" field to define the relationship
+  //relation between the user and the scan
+  user            User            @relation("UserScans", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("scans")
+}
+
+model Vulnerability {
+  id             String   @id @default(uuid())
+  scanId         String
+  severity       String
+  message        String
+  rawData        Json     @map("raw_data") // ← JSONB column
+  translatedText String?  @map("translated_text") // ← nullable, filled by LLM later
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  scan Scan @relation("ScanVulnerabilities", fields: [scanId], references: [id], onDelete: Cascade)
+
+  @@map("vulnerabilities")
+}
+
+enum ToolType {
+  SEMGREP
+  NIKTO
+}
+
+enum ScanStatus {
+  PENDING
+  IN_PROGRESS
+  COMPLETED
+  FAILED
+}
+
+enum Role {
+  ADMIN
+  USER
+}
