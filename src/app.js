@@ -22,8 +22,7 @@ app.use(cors({
     "http://localhost:3000",
     "http://localhost:5173",
     "http://localhost:5174",
-    // Add your Vercel domain here after deploying:
-    // "https://securescope.vercel.app",
+    "https://secure-scope-alpha.vercel.app",
   ],
   credentials: true
 }));
