@@ -4,6 +4,9 @@
 
 It is designed for developers, small businesses, and startups who want a completely free, infinitely scalable, and highly private security scanning orchestration tool. By running the backend locally and supplying your own AI keys, you get premium-level security insights with zero vendor lock-in and zero server costs.
 
+🌟 **Live Demo:** [https://secure-scope-alpha.vercel.app](https://secure-scope-alpha.vercel.app)  
+*(Note: To test the live demo, you must have the backend running locally on your machine. See the Installation section below.)*
+
 ## 🚀 The "Local-First OSS" Architecture
 
 SecureScope is split into two parts:
