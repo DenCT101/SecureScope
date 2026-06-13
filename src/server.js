@@ -1,10 +1,9 @@
 /**
  * Server Entry Point
- * Loads environment variables and starts the Express server.
+ * Loads environment variables and starts the Express app.
  */
 
 require("dotenv").config();
-
 const app = require("./app");
 
 const PORT = process.env.PORT || 3000;

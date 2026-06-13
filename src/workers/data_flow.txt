@@ -1,0 +1,7 @@
+Worker polls DB → finds PENDING scan → locks it →
+fetches full record (url + toolType) →
+sets status to IN_PROGRESS →
+routes to correct scanner (Nikto via Docker) →
+scanner returns parsed vulnerability array →
+saves vulnerabilities to DB via nested create →
+sets status to COMPLETED

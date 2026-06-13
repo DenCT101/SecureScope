@@ -1,5 +1,6 @@
 /**
- * Record Routes — URL → Controller mapping
+ * Scan Routes — URL → Controller mapping
+ * Local-first mode: no auth middleware required.
  */
 
 const express = require("express");
@@ -7,10 +8,9 @@ const router = express.Router();
 const scanController = require("../controllers/scan.controller");
 const { validate } = require("../middlewares/validate.middleware");
 const { createScanSchema } = require("../validators/scan.validator");
-const { authenticate } = require("../middlewares/auth.middleware");
 
-router.post("/", authenticate, validate(createScanSchema), scanController.createScan);
-router.get("/", authenticate, scanController.getAllScans);
-router.get("/:id", authenticate, scanController.getScanById);
+router.post("/", validate(createScanSchema), scanController.createScan);
+router.get("/", scanController.getAllScans);
+router.get("/:id", scanController.getScanById);
 
 module.exports = router;

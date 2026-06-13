@@ -1,17 +1,15 @@
 /**
  * Express App Setup
  * Middlewares, routes, and global error handler are wired here.
+ * Local-first mode — no auth required.
  */
 
 const express = require("express");
 const helmet = require("helmet");
 const cors = require("cors");
-const cookieParser = require("cookie-parser");
 const AppError = require("./utils/AppError");
 
 // ─── Route Imports ───────────────────────────────────────────────
-const userRoutes = require("./routes/user.routes");
-const dashboardRoutes = require("./routes/dashboard.routes");
 const scanRoutes = require("./routes/scan.routes");
 const app = express();
 
@@ -19,16 +17,22 @@ const app = express();
 app.use(helmet()); // Security headers
 app.use(express.json()); // Parse JSON bodies
 app.use(express.urlencoded({ extended: true })); // Parse URL-encoded bodies
-app.use(cors({ origin: "http://localhost:3000", credentials: true }));
-app.use(cookieParser());
+app.use(cors({
+  origin: [
+    "http://localhost:3000",
+    "http://localhost:5173",
+    "http://localhost:5174",
+    // Add your Vercel domain here after deploying:
+    // "https://securescope.vercel.app",
+  ],
+  credentials: true
+}));
 
 // ─── API Routes ──────────────────────────────────────────────────
 app.get("/api/health", (req, res) => {
   res.status(200).json({ status: "ok", timestamp: new Date().toISOString() });
 });
 
-app.use("/api/users", userRoutes);
-app.use("/api/dashboard", dashboardRoutes);
 app.use("/api/scans", scanRoutes);
 
 // ─── 404 Handler ─────────────────────────────────────────────────

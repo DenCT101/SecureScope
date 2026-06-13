@@ -1,7 +1,6 @@
 const prisma = require("../config/db");
-
-// A helper function to create fake delays (simulating a security scan taking time)
-const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+const { runNikto } = require("../scanners/nikto.scanner");
+const { translateVulnerabilitiesBatch } = require("../services/llm.service");
 
 async function processPendingScans() {
   let scanId = null;
@@ -10,11 +9,7 @@ async function processPendingScans() {
     // ==========================================
     // CONCEPT: SELECT ... FOR UPDATE SKIP LOCKED
     // ==========================================
-    // We use a raw SQL query here instead of Prisma's standard API.
-    // Why? If we run multiple worker processes, they might try to fetch the exact
-    // same PENDING scan at the exact same millisecond. 
-    // "FOR UPDATE" locks the row so others can't touch it.
-    // "SKIP LOCKED" says "if another worker locked it, just skip it and grab the next available one".
+    // Atomic row locking to prevent multiple workers from grabbing the same scan.
     const lockedScans = await prisma.$queryRaw`
       SELECT id FROM "scans"
       WHERE status = 'PENDING'
@@ -22,7 +17,6 @@ async function processPendingScans() {
       FOR UPDATE SKIP LOCKED;
     `;
 
-    // If there are no pending scans, the array will be empty. We just return.
     if (!lockedScans || lockedScans.length === 0) {
       return; 
     }
@@ -30,81 +24,83 @@ async function processPendingScans() {
     scanId = lockedScans[0].id;
     console.log(`[Worker] Picked up scan: ${scanId}`);
 
-    // ==========================================
-    // CONCEPT: STATUS STATE MACHINE (PENDING -> IN_PROGRESS)
-    // ==========================================
-    // We immediately change the state so that the frontend knows the scan started.
+    // Fetch the full scan record (including geminiKey for BYOK)
+    const scan = await prisma.scan.findUnique({
+      where: { id: scanId }
+    });
+
+    // STATUS STATE MACHINE: PENDING -> IN_PROGRESS
     await prisma.scan.update({
       where: { id: scanId },
       data: { status: "IN_PROGRESS" }
     });
 
-    console.log(`[Worker] Scan ${scanId} is now IN_PROGRESS. Simulating scanning tool...`);
-
-    // ==== SIMULATE THE HEAVY LIFTING (Dummy Data) ====
-    // In a real scenario, here is where you would do:
-    // await exec("python3 scanner.py ...") or execute Semgrep/Nikto
-    await sleep(5000); // 5 seconds of "fake scanning"
-
-    // Mock results from the "tool"
-    const fakeVulnerabilities = [
-      {
-        severity: "HIGH",
-        message: "SQL Injection found in url parameter",
-        rawData: { parameter: "id", type: "SQLi" }
-      },
-      {
-        severity: "LOW",
-        message: "Missing Strict-Transport-Security header",
-        rawData: { header: "Strict-Transport-Security" }
-      }
-    ];
+    console.log(`[Worker] Scan ${scanId} is now IN_PROGRESS. Running ${scan.toolType} against ${scan.url}...`);
 
     // ==========================================
-    // CONCEPT: STATUS STATE MACHINE (IN_PROGRESS -> COMPLETED)
+    // ROUTE TO THE CORRECT SCANNER
     // ==========================================
-    // The work is done! We save the results and mark it complete.
+    let vulnerabilities = [];
+    let metadata = null;
+
+    if (scan.toolType === "NIKTO") {
+      const result = await runNikto(scan.url);
+      vulnerabilities = result.vulnerabilities;
+      metadata = result.metadata;
+    } else {
+      // NMAP and SEMGREP — not yet implemented
+      console.log(`[Worker] Tool type ${scan.toolType} is not yet implemented. Skipping scan.`);
+      vulnerabilities = [{
+        severity: "INFO",
+        message: `Scanner for ${scan.toolType} is not yet implemented.`,
+        rawData: { toolType: scan.toolType }
+      }];
+    }
+
+    // ==========================================
+    // BYOK: Pass the per-scan Gemini key to the LLM translator
+    // ==========================================
+    // The geminiKey was stored on the scan row when the user created it.
+    // We pass it directly — the LLM service uses it once and discards it.
+    vulnerabilities = await translateVulnerabilitiesBatch(vulnerabilities, scan.geminiKey);
+
+    // STATUS STATE MACHINE: IN_PROGRESS -> COMPLETED
     await prisma.scan.update({
       where: { id: scanId },
       data: {
         status: "COMPLETED",
-        // Prisma allows nested creates! This inserts into the Vulnerability table automatically.
+        metadata: metadata,
+        geminiKey: null,  // Scrub the key after use — never persist it
         vulnerabilities: {
-          create: fakeVulnerabilities
+          create: vulnerabilities
         }
       }
     });
 
-    console.log(`[Worker] Scan ${scanId} COMPLETED! Saved ${fakeVulnerabilities.length} vulnerabilities.`);
+    console.log(`[Worker] Scan ${scanId} COMPLETED! Saved ${vulnerabilities.length} vulnerabilities and metadata.`);
 
   } catch (error) {
     console.error(`[Worker] Error during scan process:`, error);
 
-    // ==========================================
-    // CONCEPT: STATUS STATE MACHINE (IN_PROGRESS -> FAILED)
-    // ==========================================
     if (scanId) {
       console.log(`[Worker] Marking scan ${scanId} as FAILED due to error.`);
       await prisma.scan.update({
         where: { id: scanId },
-        data: { status: "FAILED" }
+        data: { status: "FAILED", geminiKey: null }
       });
     }
   }
 }
 
 // ==========================================
-// CONCEPT: THE POLLING PATTERN
+// THE POLLING PATTERN
 // ==========================================
-const POLL_INTERVAL = 5000; // 5 seconds
+const POLL_INTERVAL = 5000;
 
 console.log("[Worker] Started. Polling DB for PENDING scans every 5 seconds...");
 
-// setInterval acts like a heartbeat. Every 5 seconds, it wakes up and asks:
-// "Is there any PENDING work?"
 setInterval(() => {
   processPendingScans();
 }, POLL_INTERVAL);
 
-// We immediately do one check on startup so we don't wait 5 seconds for the first run
 processPendingScans();

@@ -1,0 +1,12 @@
+services:
+  securescope-backend:
+    build: .
+    ports:
+      - "3000:3000"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock # Required to spawn scanner containers
+    environment:
+      - NODE_ENV=production
+      - DATABASE_URL=${DATABASE_URL}
+      # The frontend can send GEMINI_API_KEY, but users can also set it here globally
+      - GEMINI_API_KEY=${GEMINI_API_KEY:-}
