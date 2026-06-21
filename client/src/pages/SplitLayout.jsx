@@ -767,6 +767,31 @@ export default function SplitLayout() {
 
         {/* Scan Launcher Form */}
         <div style={{ padding: '20px', flexShrink: 0 }}>
+          {/* GitHub / Local-First Notice */}
+          <div style={{
+            marginBottom: 16, padding: '12px', borderRadius: 8,
+            background: 'rgba(0,229,255,0.05)', border: '1px solid rgba(0,229,255,0.15)',
+            display: 'flex', gap: 10, alignItems: 'flex-start'
+          }}>
+            <Info size={16} color="#00e5ff" style={{ flexShrink: 0, marginTop: 2 }} />
+            <div>
+              <p style={{ fontSize: 12, color: '#e2e8f0', margin: 0, lineHeight: 1.5 }}>
+                <strong style={{ color: '#00e5ff' }}>Local-First Architecture:</strong> To use SecureScope, you must run the backend locally on your own machine.
+              </p>
+              <a 
+                href="https://github.com/DenCT101/SecureScope" 
+                target="_blank" 
+                rel="noopener noreferrer"
+                style={{ 
+                  display: 'inline-block', marginTop: 6, fontSize: 11, 
+                  color: '#00e5ff', textDecoration: 'none', fontWeight: 600 
+                }}
+              >
+                View GitHub for Installation Instructions →
+              </a>
+            </div>
+          </div>
+
           <div style={{ marginBottom: 14 }}>
             <label style={{
               display: 'block', fontSize: 11, fontWeight: 600,
